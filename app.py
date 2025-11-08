@@ -402,5 +402,6 @@ def analyze():
 # STARTUP
 # -------------------------
 if __name__ == "__main__":
-    # if run directly, ensure model is loaded (already done above)
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    import os
+    port = int(os.environ.get("PORT", 10000))  # Render injects PORT dynamically
+    app.run(host="0.0.0.0", port=port)
