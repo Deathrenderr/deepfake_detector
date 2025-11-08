@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Deepfake Detector</title>
+  <link href="https://fonts.googleapis.com/css?family=Orbitron:600&display=swap" rel="stylesheet">
+  <style>
+    body, html {
+      font-family: 'Orbitron', Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      transition: background 0.5s, color 0.5s;
+      background: linear-gradient(135deg, #0a0f1c 0%, #000 100%);
+      color: #e3e3e3;
+    }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.5rem 2rem;
+      letter-spacing: 0.08em;
+      background: linear-gradient(90deg, rgba(0,0,0,0.2), rgba(0,0,0,0.4));
+      border-bottom: 1px solid rgba(0,234,255,0.08);
+    }
+    .theme-btn {
+      background: linear-gradient(90deg,#00eaff,#00ffa3);
+      color: #001;
+      border: none; border-radius: 14px;
+      padding: 0.5em 0.9em; font-size: 1.0em;
+      cursor: pointer;
+    }
+    section {
+      max-width: 960px;
+      margin: 2.2rem auto; text-align: center;
+      padding: 0 1rem;
+    }
+    .drop-zone {
+      border: 2px dashed rgba(0,234,255,0.25);
+      border-radius: 14px;
+      padding: 2rem;
+      margin: 2rem 0;
+      background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.35));
+      cursor: pointer;
+      transition: border 0.25s, background 0.25s, box-shadow 0.3s;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .drop-zone.highlight {
+      border-color: #ffcb05;
+      box-shadow: 0 0 30px #00eaff55;
+    }
+    .drop-message {
+      font-size: 1.1rem; color: #00eaff;
+    }
+    .upload-link {
+      color: #ffcb05; cursor: pointer; text-decoration: underline;
+    }
+    .loader-container { display: none; align-items: center; justify-content: center; margin: 1.2rem 0; }
+    .futuristic-loader {
+      margin: 0 1rem 0 0;
+      border: 6px solid rgba(0,0,0,0.2);
+      border-top: 6px solid #00eaff;
+      border-radius: 50%;
+      width: 44px; height: 44px;
+      animation: spin 1.1s linear infinite;
+      box-shadow: 0 0 22px 1px #00eaff44;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .result {
+      margin-top: 1.6rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.35));
+      border: 1px solid rgba(0,234,255,0.06);
+      text-align: left;
+    }
+    .verdict {
+      font-size: 1.4rem; font-weight: bold; margin-bottom: 0.6rem;
+    }
+    .verdict.fake { color: #ff6b6b; }
+    .verdict.real { color: #7ef9b6; }
+    .explanations { margin-top: 0.8rem; }
+    .thumb-grid { display:flex; gap:12px; margin-top: 0.8rem; flex-wrap:wrap; justify-content:flex-start; }
+    .thumb {
+      background: #071018;
+      border-radius:8px;
+      padding:6px;
+      border: 1px solid rgba(0,234,255,0.06);
+    }
+    .thumb img { width: 200px; height: auto; display:block; border-radius:6px; }
+    footer {
+      text-align: center; padding: 2rem 1rem 1rem 1rem; font-size: 0.95rem; color: rgba(255,255,255,0.6);
+    }
+    @media (max-width: 700px) { .thumb img { width: 140px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚡ Deepfake Detector 2099</h1>
+    <button id="themeToggle" class="theme-btn" title="Toggle theme">Theme</button>
+  </header>
+
+  <section>
+    <h2>Upload a Face Image or Video</h2>
+    <form id="uploadForm" autocomplete="off">
+      <div id="dropZone" class="drop-zone">
+        <input id="fileInput" name="file" type="file" accept="image/*,video/*" style="display:none;">
+        <div class="drop-message">Drag & drop or <span class="upload-link">browse</span> to upload</div>
+        <div style="font-size:0.85rem;color:#9be6ff;margin-top:8px;">Supports images and short videos (mp4, mov)</div>
+      </div>
+    </form>
+
+    <div id="loader" class="loader-container">
+      <div class="futuristic-loader"></div>
+      <div style="color:#00eaff">Analyzing — this may take a few seconds</div>
+    </div>
+
+    <div id="result" class="result" style="display:none;">
+      <div id="verdict" class="verdict"></div>
+      <div id="confidence"></div>
+      <div id="explanation" class="explanations"></div>
+      <div id="thumbs" class="thumb-grid"></div>
+    </div>
+  </section>
+
+  <footer>Future Ready · Securing Digital Reality</footer>
+
+<script>
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const uploadLink = document.querySelector('.upload-link');
+  const loader = document.getElementById('loader');
+  const resultBox = document.getElementById('result');
+  const verdictEl = document.getElementById('verdict');
+  const confidenceEl = document.getElementById('confidence');
+  const explanationEl = document.getElementById('explanation');
+  const thumbsEl = document.getElementById('thumbs');
+
+  function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+  function highlight() { dropZone.classList.add('highlight'); }
+  function unhighlight() { dropZone.classList.remove('highlight'); }
+
+  ['dragenter','dragover'].forEach(evt => dropZone.addEventListener(evt, e => { preventDefaults(e); highlight(); }));
+  ['dragleave','dragend','drop'].forEach(evt => dropZone.addEventListener(evt, e => { preventDefaults(e); unhighlight(); }));
+
+  dropZone.addEventListener('drop', handleDrop);
+  dropZone.addEventListener('click', () => fileInput.click());
+  uploadLink.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+
+  fileInput.addEventListener('change', (e) => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+  function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const file = dt.files[0];
+    if (file) processFile(file);
+  }
+
+  async function processFile(file) {
+    // reset
+    resultBox.style.display = 'none';
+    explanationEl.innerHTML = '';
+    thumbsEl.innerHTML = '';
+    verdictEl.textContent = '';
+    confidenceEl.textContent = '';
+
+    loader.style.display = 'flex';
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const resp = await fetch('/analyze', { method: 'POST', body: fd });
+      const data = await resp.json();
+      loader.style.display = 'none';
+
+      if (data.error) {
+        resultBox.style.display = '';
+        verdictEl.textContent = data.error;
+        verdictEl.className = 'verdict fake';
+        return;
+      }
+
+      // display
+      resultBox.style.display = '';
+
+      if (data.type === 'video') {
+        const pred = data.prediction;
+        const avgF = data.avg_fake_confidence.toFixed(2);
+        const avgR = data.avg_real_confidence.toFixed(2);
+        verdictEl.textContent = pred === 'FAKE' ? '⚠️ Deepfake Detected' : '✅ Authentic Media';
+        verdictEl.className = 'verdict ' + (pred === 'FAKE' ? 'fake' : 'real');
+        confidenceEl.innerHTML = `Average — Real: <b>${avgR}%</b> | Fake: <b>${avgF}%</b>`;
+        // explanations for frames
+        explanationEl.innerHTML = '<strong>Forensic explanations (top frames):</strong>';
+        if (data.explain_frames && data.explain_frames.length) {
+          data.explain_frames.forEach(f => {
+            const div = document.createElement('div');
+            div.style.marginTop = '8px';
+            const lines = f.explanations.map(s => `<div style="font-size:0.9rem;color:#cfefff">• ${s}</div>`).join('');
+            div.innerHTML = `<div style="font-weight:600">Frame ${f.frame_index} — Fake: ${f.fake_conf.toFixed(2)}%</div>` + lines;
+            explanationEl.appendChild(div);
+
+            if (f.thumbnail_b64) {
+              const tdiv = document.createElement('div');
+              tdiv.className = 'thumb';
+              tdiv.innerHTML = `<img src="data:image/jpeg;base64,${f.thumbnail_b64}" alt="frame ${f.frame_index}"><div style="font-size:0.8rem;margin-top:6px;color:#9be6ff">Frame ${f.frame_index}</div>`;
+              thumbsEl.appendChild(tdiv);
+            }
+          });
+        }
+      } else if (data.type === 'image') {
+        const pred = data.prediction;
+        verdictEl.textContent = pred === 'FAKE' ? '⚠️ Deepfake Detected' : '✅ Authentic Image';
+        verdictEl.className = 'verdict ' + (pred === 'FAKE' ? 'fake' : 'real');
+        confidenceEl.innerHTML = `Real: <b>${data.real_confidence.toFixed(2)}%</b> | Fake: <b>${data.fake_confidence.toFixed(2)}%</b>`;
+        explanationEl.innerHTML = '<strong>Forensic explanations:</strong>';
+        (data.explanations || []).forEach(s => {
+          const el = document.createElement('div');
+          el.style.fontSize = '0.95rem'; el.style.color = '#cfefff'; el.innerHTML = `• ${s}`;
+          explanationEl.appendChild(el);
+        });
+        if (data.thumbnail_b64) {
+          const tdiv = document.createElement('div');
+          tdiv.className = 'thumb';
+          tdiv.innerHTML = `<img src="data:image/jpeg;base64,${data.thumbnail_b64}" alt="analyzed image">`;
+          thumbsEl.appendChild(tdiv);
+        }
+      } else {
+        verdictEl.textContent = 'Unknown response';
+        verdictEl.className = 'verdict fake';
+      }
+    } catch (err) {
+      loader.style.display = 'none';
+      resultBox.style.display = '';
+      verdictEl.textContent = 'Server error or timeout. Try a smaller file.';
+      verdictEl.className = 'verdict fake';
+      console.error(err);
+    }
+  }
+</script>
+</body>
+</html>
